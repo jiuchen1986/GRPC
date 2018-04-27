@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package mygrpc;
+
+service MyGrpc {
+  
+  // Get a service chain descriptor according to a request indicating to a single chain
+  rpc GetChainReqResp(ServiceChain) returns (ServiceChainDescriptor) {}
+
+  // Get service chain descriptors according to a request indicating to multiple chains
+  rpc GetChainsReqResps(ServiceChains) returns (stream ServiceChainDescriptor) {}
+
+  // Get a descriptor describing multiple service chains according to requests of which indicating to a single chain each 
+  rpc GetChainsReqsResp(stream ServiceChain) returns (ServiceChainDescriptors) {}
+
+  // Get multiple service chain descriptors according to requests of which indicating to a single chain each
+  rpc GetChainReqsResps(stream ServiceChain) returns (stream ServiceChainDescriptor) {}
+
+}
+
+message Service {
+  // name of the service
+  string name = 1;
+  // position of the service in the service chain
+  int32 pos = 2;
+}
+
+message ServiceChain {
+  // unique identifier of the service chain
+  int32 id = 1;
+  // length of the service chain
+  int32 len = 2;
+  // services froming the service chain
+  repeated Service chain = 3;
+}
+
+message ServiceChains {
+  repeated ServiceChain chains = 1;
+}
+
+message ServiceDescriptor {
+  // name of the service
+  string name = 1;
+  // description of the service
+  string desc = 2;
+  // position of the service in the service chain
+  int32 pos =3;
+}
+
+message ServiceChainDescriptor {
+  // unique identifier of the service chain
+  int32 id = 1;
+  // length of the service chain
+  int32 len = 2;
+  // descriptions of the services froming the service chain
+  repeated ServiceDescriptor chain_desc = 3;
+}
+
+message ServiceChainDescriptors {
+  repeated ServiceDescriptor chain_descs = 1;
+}
