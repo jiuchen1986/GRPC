@@ -1,0 +1,232 @@
+# Study Notes
+Records knowledge from studying gRPC
+
+## Look At The Generated Codes From Protobuf
+The gRPC uses the protobuf to define messages, RPCs and services establishing the end-to-end RPC, which helps to generate codes for both the client and the server serializing/deserializing messages.
+
+### Message Definitions
+Assuming a message called `Req` is defined like
+
+    message Req {
+      int32 req_id = 1;
+      repeated ReqBody req_body = 2;
+    }
+
+with a message called `ReqBody` is defined like
+
+    message ReqBody {
+      string body = 1;
+    }
+
+in the protobuf file, two structs will be generated in the `.pb.go` file as
+
+    type Req struct {
+    	ReqId int32 `protobuf:"varint,1,opt,name=req_id,json=reqId" json:"req_id,omitempty"`
+    	ReqBody []*ReqBody `protobuf:"bytes,2,rep,name=req_body,json=reqBody" json:"req_body,omitempty"`
+    }
+
+    type ReqBody struct {
+        Body string `protobuf:"bytes,1,opt,name=body,json=body" json:"body,omitempty"
+    }
+
+For each struct, several functions are generated like
+
+    func (m *Req) Reset(){ *m = Req{} }
+    func (m *Req) String() string{ return proto.CompactTextString(m) }
+    func (*Req) ProtoMessage()   {}
+    func (*Req) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+
+with getter functions for each element in the message like
+
+    func (m *Req) GetReqId() int32 {...}
+    func (m *Req) GetReqBody() []*ReqBody {...}
+
+
+### Service Definitions
+Assuming a service with 4 RPCs is defined in the protobuf file like
+
+    service MyGrpc {
+      
+      // Simple RPC
+      rpc SimpleCall(Req) returns (Resp) {}
+    
+      // Server-side streaming RPC
+      rpc ServerStreamCall(Req) returns (stream Resp) {}
+    
+      // Client-side streaming RPC 
+      rpc ClientStreamCall(stream Req) returns (Resp) {}
+    
+      // Bidirectional streaming RPC
+      rpc BiStreamCall(stream Req) returns (stream Resp) {}
+    
+    }
+
+An interface, containing RPC-related functions, with an according struct will be generated for the client as follows
+    
+    // Client API for MyGrpc service
+    
+    type MyGrpcClient interface {
+    	// Simple RPC
+    	SimpleCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (*Resp, error)
+    	// Server-side streaming RPC
+    	ServerStreamCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (MyGrpc_ServerStreamCallClient, error)
+    	// Client-side streaming RPC
+    	ClientStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_ClientStreamCallClient, error)
+    	// Bidirectional streaming RPC
+    	BiStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_BiStreamCallClient, error)
+    }
+    
+    type myGrpcClient struct {
+    	cc *grpc.ClientConn
+    }
+
+Meanwhile, for the server, only an interface without the implementing struct will be generated as follows
+
+    
+    // Server API for MyGrpc service
+
+    type MyGrpcServer interface {
+	    // Simple RPC
+	    SimpleCall(context.Context, *Req) (*Resp, error)
+	    // Server-side streaming RPC
+	    ServerStreamCall(*Req, MyGrpc_ServerStreamCallServer) error
+	    // Client-side streaming RPC
+	    ClientStreamCall(MyGrpc_ClientStreamCallServer) error
+	    // Bidirectional streaming RPC
+	    BiStreamCall(MyGrpc_BiStreamCallServer) error
+    }
+
+
+
+### RPC Definitions
+Basically 4 types of RPC could be defined using gRPC, generating different functions in codes.
+
+#### Simple RPC
+In a simple RPC, the client sends a request to the server using the stub and waits for a response to come back, just like a normal function call. Usually it is defined in the protobuf file like:
+
+    rpc SimpleCall(Req) returns (Resp) {}
+
+where the Req and the Resp are message objects defined in the protobuf file for the same gRPC processing.
+
+With the simple RPC, a function for the client side is generated like
+
+    SimpleCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (*Resp, error)
+
+which returns an output and terminates for each time called with a single input in a block way.
+
+And for the server side, a similar function is generated like
+
+    SimpleCall(ctx context.Context, in *Req) (*Resp, error)
+
+Which is called and returns once receiving a request from a client a time.
+
+#### Server-Side Streaming RPC
+In a server-side streaming RPC, the client sends a request to the server and gets a stream to read a sequence of messages back. The client reads from the returned stream until there are no more messages. Usually it is defined like:
+
+    ServerStreamCall(Req) returns (stream Resp)
+
+This will generate a function for the client side like
+
+    ServerStreamCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (MyGrpc_ServerStreamCallClient, error)
+
+which is called with a single input and returns an object of a specific client interface `MyGrpc_ServerStreamCallClient` for this RPC. A `grpc.ClientStream` object and a `Recv() (*Resp, error)` function is defined in the client interface like
+
+    type MyGrpc_ServerStreamCallClient interface {
+    	Recv() (*Resp, error)
+    	grpc.ClientStream
+    }
+
+Hence the client could use the `Recv() (*Resp, error)` function to continuously read messages out from the stream until no more messages are received.
+
+For the server side, a function is generated like
+
+    ServerStreamCall(*Req, MyGrpc_ServerStreamCallServer) error
+
+where an object of a specific server interface `MyGrpc_ServerStreamCallServer` is created like
+
+    type MyGrpc_ServerStreamCallServer interface {
+    	Send(*Resp) error
+    	grpc.ServerStream
+    }
+
+with a `grpc.ServerStream` object and a `Send(*Resp)` function. Then the server can use the `Send(*Resp)` function to send back responses to the client.
+
+
+#### Client-Side Streaming RPC
+In a client-side streaming RPC, the client writes a sequence of messages and sends them to the server, again using a provided stream. Once the client has finished writing the messages, it waits for the server to read them all and return its response. Usually it is like
+
+    rpc ClientStreamCall(stream Req) returns (Resp) {}
+
+This generate a function for the client like
+
+    ClientStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_ClientStreamCallClient, error)
+
+which returns an object of a specific client interface `MyGrpc_ClientStreamCallClient`. Two functions called `Send(*Req)` and `CloseAndRecv() (*Resp, error)`, with an object of the `grpc.ClientStream` are defined in the client interface as follows,
+
+    type MyGrpc_ClientStreamCallClient interface {
+    	Send(*Req) error
+    	CloseAndRecv() (*Resp, error)
+    	grpc.ClientStream
+    }
+
+Hence the client can use the `Send(*Req)` function to continuously send messages, and use `CloseAndRecv() (*Resp, error)` function to get the response message from the server and close the stream.
+
+For the server side, a function is generated like
+
+    ClientStreamCall(MyGrpc_ClientStreamCallServer) error
+
+with an object of a specific server interface `MyGrpc_ClientStreamCallServer` as a input, which is defined like
+
+    type MyGrpc_ClientStreamCallServer interface {
+    	SendAndClose(*Resp) error
+    	Recv() (*Req, error)
+    	grpc.ServerStream
+    }
+
+with two functions called `SendAndClose(*Resp) error` and `Recv() (*Req, error)`, and an object of `grpc.ServerStream`. Hence, the server can use the function `Recv() (*Req, error)` to continuously receive messages from the client, as well as send back message and close the stream with the function `SendAndClose(*Resp) error`.
+
+#### Bidirectional Streaming RPC
+In a bidirectional streaming RPC, both sides send a sequence of messages using a read-write stream. The two streams operate independently, so clients and servers can read and write in whatever order they like. Usually it is like
+
+    rpc BiStreamCall(stream Req) returns (stream Resp) {}
+
+This generate a function for the client side like
+
+    BiStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_BiStreamCallClient, error)
+
+which returns an object of a specific client interface `MyGrpc_BiStreamCallClient` defined like
+
+    type MyGrpc_BiStreamCallClient interface {
+    	Send(*Req) error
+    	Recv() (*Resp, error)
+    	grpc.ClientStream
+    }
+
+with two functions called `Send(*Req) error` and `Recv() (*Resp, error)`, as well as an object of the `grpc.ClientStream`. Then, the client can use the `Send(*Req) error` function and the `Recv() (*Resp, error)` function to continuously send and receive messages to and from the server.
+
+For the server side, a function is generated like
+
+    BiStreamCall(MyGrpc_BiStreamCallServer) error
+
+which receives an object of a specific server interface `MyGrpc_BiStreamCallServer` defined like
+    
+    type MyGrpc_BiStreamCallServer interface {
+    	Send(*Resp) error
+    	Recv() (*Req, error)
+    	grpc.ServerStream
+    }
+
+with two functions called `Send(*Resp) error` and `Recv() (*Req, error)`, as well as an object of the `grpc.ServerStream`. Then, the server can use the `Send(*Resp) error` function and the `Recv() (*Req, error)` function to continuously send and receive messages to and from the client.
+
+
+## Server Implementations
+With the generated codes for the server side shown above, codes of the server providing the defined services can implemented. 
+
+The implementations of the server usually include several common steps as follows
+
+- Implementing the generated top-level server interface, e.g. `MyGrpcServer`, by filling the processing logic into the RPC-related functions.
+- Using the generated server interface specific to each RPC, e.g. `MyGrpc_ServerStreamCallServer` and `MyGrpc_ClientStreamCallServer`, in each related function to receive and send messages from and to the client.
+- Creating a generic gRPC server with options by executing like `grpcServer := grpc.NewServer(opts...)`.
+- Registering the implemented server object to the generic gRPC server via the generated function in `.pb.go` file, e.g. `func RegisterMyGrpcServer(s *grpc.Server, srv MyGrpcServer) {...}`.
+- Running a tcp server listening on a port
+- Running the generic gRPC server with the opened tcp server.
