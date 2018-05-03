@@ -1,0 +1,60 @@
+[
+    {
+        "chain_len": 3, 
+        "chain_id": 1, 
+        "chain": [
+            {
+                "svc_pos": 1, 
+                "svc_name": "svcA"
+            }, 
+            {
+                "svc_pos": 2, 
+                "svc_name": "svcB"
+            }, 
+            {
+                "svc_pos": 3, 
+                "svc_name": "svcC"
+            }
+        ]
+    }, 
+    {
+        "chain_len": 3, 
+        "chain_id": 2, 
+        "chain": [
+            {
+                "svc_pos": 1, 
+                "svc_name": "svcB"
+            }, 
+            {
+                "svc_pos": 2, 
+                "svc_name": "svcD"
+            }, 
+            {
+                "svc_pos": 3, 
+                "svc_name": "svcC"
+            }
+        ]
+    }, 
+    {
+        "chain_len": 4, 
+        "chain_id": 3, 
+        "chain": [
+            {
+                "svc_pos": 1, 
+                "svc_name": "svcA"
+            }, 
+            {
+                "svc_pos": 2, 
+                "svc_name": "svcC"
+            }, 
+            {
+                "svc_pos": 3, 
+                "svc_name": "svcD"
+            }, 
+            {
+                "svc_pos": 4, 
+                "svc_name": "svcB"
+            }
+        ]
+    }
+]

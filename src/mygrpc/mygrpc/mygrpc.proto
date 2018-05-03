@@ -57,5 +57,5 @@ message ServiceChainDescriptor {
 }
 
 message ServiceChainDescriptors {
-  repeated ServiceDescriptor chain_descs = 1;
+  repeated ServiceChainDescriptor chain_descs = 1;
 }

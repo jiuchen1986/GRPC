@@ -1,6 +1,6 @@
 // Entry of the server of mygrpc
 
-package mygrpcserver
+package main
 
 import (
     "encoding/json"
@@ -12,6 +12,7 @@ import (
     "net"    
     
     pb "mygrpc/mygrpc"
+    impl "mygrpc/mygrpcimpl/server"
     
     "google.golang.org/grpc"
 )
@@ -19,7 +20,7 @@ import (
 var (
     // tls              = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
     useTestFile      = flag.Bool("test_file", true, "Uses the json file containing service info as the data source")
-    svcInfoFile      = flag.String("svc_info_file", "/usr/src/grpc/src/mygrpc/test_data.json", "A json file containing service info for testing")
+    svcInfoFile      = flag.String("svc_info_file", "/usr/src/grpc/src/mygrpc/testdata/test_data_server.json", "A json file containing service info for testing")
     svcName          = flag.String("name", "svcA", "The name of the service providing by this server")
     port             = flag.Int("port", 8082, "The server port")
     
@@ -42,8 +43,8 @@ func main() {
         }
         MyGrpcLogger.Printf("Successfully load service info from the json file at %s", *svcInfoFile)
         
-        gprcServer = grpc.NewServer()
-        pb.RegisterMyGrpcServer(grpcServer, NewMyGrpcServer(*useTestFile, svc_info, *svc_name))
+        grpcServer := grpc.NewServer()
+        pb.RegisterMyGrpcServer(grpcServer, impl.NewMyGrpcServer(*useTestFile, svc_info, *svcName))
         
         lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
         if err != nil {

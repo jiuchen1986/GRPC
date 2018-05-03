@@ -1,0 +1,22 @@
+[
+    {
+        "svc_pos": 0, 
+        "svc_name": "svcA", 
+        "svc_desc": "This is service A"
+    }, 
+    {
+        "svc_pos": 0, 
+        "svc_name": "svcB", 
+        "svc_desc": "This is service B"
+    }, 
+    {
+        "svc_pos": 0, 
+        "svc_name": "svcC", 
+        "svc_desc": "This is service C"
+    }, 
+    {
+        "svc_pos": 0, 
+        "svc_name": "svcD", 
+        "svc_desc": "This is service D"
+    }
+]

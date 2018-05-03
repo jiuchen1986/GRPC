@@ -222,6 +222,7 @@ with two functions called `Send(*Resp) error` and `Recv() (*Req, error)`, as wel
 ## Server Implementations
 With the generated codes for the server side shown above, codes of the server providing the defined services can implemented. 
 
+### Common Steps
 The implementations of the server usually include several common steps as follows
 
 - Implementing the generated top-level server interface, e.g. `MyGrpcServer`, by filling the processing logic into the RPC-related functions.
@@ -230,3 +231,43 @@ The implementations of the server usually include several common steps as follow
 - Registering the implemented server object to the generic gRPC server via the generated function in `.pb.go` file, e.g. `func RegisterMyGrpcServer(s *grpc.Server, srv MyGrpcServer) {...}`.
 - Running a tcp server listening on a port
 - Running the generic gRPC server with the opened tcp server.
+
+
+### More Tips
+
+#### How To End Client-Side Streaming RPC
+For the client-side streaming RPC, a simple way to end the RPC and close the stream is like
+
+    for {
+        req, err := srv.Recv()
+        if err == io.EOF {
+            ...
+            return srv.SendAndClose(resp)
+        }    
+        ...
+    }
+
+where the type of variables above are like
+
+    req    *Req
+    srv    MyGrpc_ClientStreamCallServer
+    resp   *Resp
+
+As the outer `for{...}` loop is for continuously receiving messages from the client-side stream, the main idea for ending the RPC is calling the `SendAndClose(*Resp) error` function if a `io.EOF` error occurs when try to receive more messages from the client-side stream. 
+
+
+#### How To End Bidirectional Streaming RPC
+For the bidirectional streaming RPC, a simple way to end the RPC and close the stream is like
+
+    for {
+        req, err := srv.Recv()
+        if err == io.EOF {
+            ...
+            return nil
+        }    
+        ...
+    }
+
+where the type of variables are same to the ones in the last section.
+
+As the outer `for{...}` loop is for continuously receiving and sending messages from and to the client, the main idea for ending the RPC is just returning non error if a `io.EOF` error occurs when try to receive more messages from the client. More messages can be send to the client before returning.

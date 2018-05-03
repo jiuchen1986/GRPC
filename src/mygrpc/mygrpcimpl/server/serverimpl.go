@@ -1,17 +1,20 @@
 // Implementations of the server of mygrpc
 
-package mygrpcserver
+package server
 
 import (
     "encoding/json"
     "fmt"
     "io"
+    "log"
+    "os"
     
     pb "mygrpc/mygrpc"
-    // "mygrpc/mygrpcimpl/handler
     
     "golang.org/x/net/context"
 )
+
+var MyGrpcLogger = log.New(os.Stderr, "mygrpc_server_", log.LstdFlags|log.Lshortfile)
 
 type myGrpcServer struct {
     useTestFile bool   // whether use the testing data from a json file
@@ -40,7 +43,7 @@ func NewMyGrpcServer(useTest bool, testData []*pb.ServiceDescriptor, name string
         jsonStr, _ := json.Marshal(testData)
         MyGrpcLogger.Printf("Generate mygrpc server with testing svc info: \n%s", string(jsonStr))
         svcMap := make(map[string]*pb.ServiceDescriptor)
-        for _, svc in range testData {
+        for _, svc := range testData {
             svcMap[svc.GetSvcName()] = svc
         }
         return &myGrpcServer{useTestFile: useTest, testSvcInfo: svcMap, svcName: name}
@@ -60,7 +63,7 @@ func (s *myGrpcServer) GetServiceChainDescriptor(sc *pb.ServiceChain) (*pb.Servi
                                 SvcName: svc.GetSvcName(),
                                 ChainId: sc.GetChainId(),
                                 Msg:     "No service found",
-                                Err:     nil
+                                Err:     nil,
                             }
             }
             if svc.GetSvcPos() > sc.GetChainLen() || svc.GetSvcPos() < 1 {
@@ -68,16 +71,16 @@ func (s *myGrpcServer) GetServiceChainDescriptor(sc *pb.ServiceChain) (*pb.Servi
                                 SvcName: svc.GetSvcName(),
                                 ChainId: sc.GetChainId(),
                                 Msg:     fmt.Sprintf("Wrong service position %d with chain len %d", svc.GetSvcPos(), sc.GetChainLen()),
-                                Err:     nil
+                                Err:     nil,
                             }
             }
             sd.SvcPos = svc.GetSvcPos()
             cd[sd.SvcPos - 1] = sd
         }
         scd := &pb.ServiceChainDescriptor{
-                   ChainId:    svcChain.GetChainId(),
-                   ChainLen:   svcChain.GetChainLen(),
-                   ChainDesc:  chainDesc
+                   ChainId:    sc.GetChainId(),
+                   ChainLen:   sc.GetChainLen(),
+                   ChainDesc:  cd,
                }
         return scd, nil
     }
@@ -85,21 +88,25 @@ func (s *myGrpcServer) GetServiceChainDescriptor(sc *pb.ServiceChain) (*pb.Servi
     return nil, nil
 }
 
-func (s *myGrpcServer) GetChainReqResp(ctx, context.Context, sc *pb.ServiceChain) (*pb.ServiceChainDescriptor, error) {
+func (s *myGrpcServer) GetChainReqResp(ctx context.Context, sc *pb.ServiceChain) (*pb.ServiceChainDescriptor, error) {
     jsonStr, _ := json.Marshal(sc)
-    MyGrpcLogger.Printf("Received service chain request: \n%s", string(json.Marshal(jsonStr)))
+    MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
     return s.GetServiceChainDescriptor(sc)
 }
 
 func (s *myGrpcServer) GetChainsReqResps(scs *pb.ServiceChains, srv pb.MyGrpc_GetChainsReqRespsServer) error {
     jsonStr, _ := json.Marshal(scs)
-    MyGrpcLogger.Printf("Received service chains request: \n%s", string(json.Marshal(jsonStr)))
-    for _, sc in range scs.GetChains() {
-        if scd, err := s.GetServiceChainDescriptor(sc); err != nil {
+    MyGrpcLogger.Printf("Received service chains request: \n%s", string(jsonStr))
+    var scd *pb.ServiceChainDescriptor
+    var err error
+    for _, sc := range scs.GetChains() {
+        scd, err = s.GetServiceChainDescriptor(sc)
+        if err != nil {
             return err
         }
         
-        if err := srv.Send(scd); err != nil {
+        err = srv.Send(scd)
+        if err != nil {
             return err
         }
     }
@@ -111,21 +118,24 @@ func (s *myGrpcServer) GetChainsReqsResp(srv pb.MyGrpc_GetChainsReqsRespServer) 
     scds := &pb.ServiceChainDescriptors{ChainDescs: make([]*pb.ServiceChainDescriptor, 1)}
     
     // continuously receiving messages from clients
+    var scd *pb.ServiceChainDescriptor
+    var err error
     for {
-        sc, err := srv.Recv()        
-        if err == io.EOF {
+        sc, e := srv.Recv()        
+        if e == io.EOF {
             scds.ChainDescs = scds.ChainDescs[1:]  //drop the first empty element
-            return s.SendAndClose(scds)
+            return srv.SendAndClose(scds)
         }
         
-        if err != nil {
-            return err
+        if e != nil {
+            return e
         }
         
         jsonStr, _ := json.Marshal(sc)
-        MyGrpcLogger.Printf("Received service chain request: \n%s", string(json.Marshal(jsonStr)))
+        MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
         
-        if scd, err := s.GetServiceChainDescriptor(sc); err != nil {
+        scd, err = s.GetServiceChainDescriptor(sc);
+        if err != nil {
             return err
         }
         
@@ -134,24 +144,28 @@ func (s *myGrpcServer) GetChainsReqsResp(srv pb.MyGrpc_GetChainsReqsRespServer) 
 }
 
 func (s *myGrpcServer) GetChainReqsResps(srv pb.MyGrpc_GetChainReqsRespsServer) error {
+    var scd *pb.ServiceChainDescriptor
+    var err error
     for {
-        sc, err := srv.Recv()        
-        if err == io.EOF {
+        sc, e := srv.Recv()        
+        if e == io.EOF {
             return nil
         }
         
-        if err != nil {
+        if e != nil {
             return err
         }
         
         jsonStr, _ := json.Marshal(sc)
-        MyGrpcLogger.Printf("Received service chain request: \n%s", string(json.Marshal(jsonStr)))
+        MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
         
-        if scd, err := s.GetServiceChainDescriptor(sc); err != nil {
+        scd, err = s.GetServiceChainDescriptor(sc);
+        if err != nil {
             return err
         }
         
-        if err := srv.Send(scd); err != nil {
+        err = srv.Send(scd)
+        if err != nil {
             return err
         }
     }
