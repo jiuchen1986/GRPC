@@ -14,20 +14,20 @@ import (
     "golang.org/x/net/context"
 )
 
-var MyGrpcLogger = log.New(os.Stderr, "mygrpc_server_", log.LstdFlags|log.Lshortfile)
+var myGrpcLogger = log.New(os.Stderr, "mygrpc_server_", log.LstdFlags|log.Lshortfile)
 
 type myGrpcServer struct {
-    useTestFile bool   // whether use the testing data from a json file
-    testSvcInfo map[string]*pb.ServiceDescriptor  // map of service descriptors read from the testing file
-    svcName     string   // name of the service providing by the server
+    useTestFile   bool   // whether use the testing data from a json file
+    testSvcInfo   map[string]*pb.ServiceDescriptor  // map of service descriptors read from the testing file
+    svcName       string   // name of the service providing by the server
 }
 
 // error type used to raise exceptions when dealing with service info
 type ServiceError struct {
-    SvcName string
-    ChainId int32
-    Msg     string
-    Err     error    
+    SvcName   string
+    ChainId   int32
+    Msg       string
+    Err       error    
 }
 
 func (e *ServiceError) Error() string {
@@ -41,7 +41,7 @@ func (e *ServiceError) Error() string {
 func NewMyGrpcServer(useTest bool, testData []*pb.ServiceDescriptor, name string) *myGrpcServer {
     if useTest {
         jsonStr, _ := json.Marshal(testData)
-        MyGrpcLogger.Printf("Generate mygrpc server with testing svc info: \n%s", string(jsonStr))
+        myGrpcLogger.Printf("Generate mygrpc server with testing svc info: \n%s", string(jsonStr))
         svcMap := make(map[string]*pb.ServiceDescriptor)
         for _, svc := range testData {
             svcMap[svc.GetSvcName()] = svc
@@ -53,7 +53,7 @@ func NewMyGrpcServer(useTest bool, testData []*pb.ServiceDescriptor, name string
 }
 
 // return a descriptor of a service chain
-func (s *myGrpcServer) GetServiceChainDescriptor(sc *pb.ServiceChain) (*pb.ServiceChainDescriptor, error) {
+func (s *myGrpcServer) getServiceChainDescriptor(sc *pb.ServiceChain) (*pb.ServiceChainDescriptor, error) {
     if s.useTestFile {
         cd := make([]*pb.ServiceDescriptor, sc.GetChainLen())
         for _, svc := range sc.GetChain() {
@@ -90,17 +90,17 @@ func (s *myGrpcServer) GetServiceChainDescriptor(sc *pb.ServiceChain) (*pb.Servi
 
 func (s *myGrpcServer) GetChainReqResp(ctx context.Context, sc *pb.ServiceChain) (*pb.ServiceChainDescriptor, error) {
     jsonStr, _ := json.Marshal(sc)
-    MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
-    return s.GetServiceChainDescriptor(sc)
+    myGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
+    return s.getServiceChainDescriptor(sc)
 }
 
 func (s *myGrpcServer) GetChainsReqResps(scs *pb.ServiceChains, srv pb.MyGrpc_GetChainsReqRespsServer) error {
     jsonStr, _ := json.Marshal(scs)
-    MyGrpcLogger.Printf("Received service chains request: \n%s", string(jsonStr))
+    myGrpcLogger.Printf("Received service chains request: \n%s", string(jsonStr))
     var scd *pb.ServiceChainDescriptor
     var err error
     for _, sc := range scs.GetChains() {
-        scd, err = s.GetServiceChainDescriptor(sc)
+        scd, err = s.getServiceChainDescriptor(sc)
         if err != nil {
             return err
         }
@@ -132,9 +132,9 @@ func (s *myGrpcServer) GetChainsReqsResp(srv pb.MyGrpc_GetChainsReqsRespServer) 
         }
         
         jsonStr, _ := json.Marshal(sc)
-        MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
+        myGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
         
-        scd, err = s.GetServiceChainDescriptor(sc);
+        scd, err = s.getServiceChainDescriptor(sc);
         if err != nil {
             return err
         }
@@ -157,9 +157,9 @@ func (s *myGrpcServer) GetChainReqsResps(srv pb.MyGrpc_GetChainReqsRespsServer) 
         }
         
         jsonStr, _ := json.Marshal(sc)
-        MyGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
+        myGrpcLogger.Printf("Received service chain request: \n%s", string(jsonStr))
         
-        scd, err = s.GetServiceChainDescriptor(sc);
+        scd, err = s.getServiceChainDescriptor(sc);
         if err != nil {
             return err
         }

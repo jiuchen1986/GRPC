@@ -7,24 +7,26 @@ import (
     "flag"
     "log"
     "os"
-    "fmt"
     "io/ioutil"
-    "net"    
+    "time"    
     
     pb "mygrpc/mygrpc"
-    impl "mygrpc/mygrpcimpl/server"
-    
-    "google.golang.org/grpc"
+    impl "mygrpc/mygrpcimpl/client"
 )
 
 var (
     // tls              = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
-    useTestFile      = flag.Bool("test_file", true, "Uses the json file containing service info as the data source")
-    svcInfoFile      = flag.String("svc_info_file", "/usr/src/grpc/src/mygrpc/testdata/test_data_server.json", "A json file containing service info for testing")
-    svcName          = flag.String("name", "svcA", "The name of the service providing by this server")
-    port             = flag.Int("port", 8082, "The server port")
+    useTestFile         = flag.Bool("test_file", true, "Uses the json file containing service chain info as the data source")
+    chainInfoFile       = flag.String("chain_info_file", "/usr/src/grpc/src/mygrpc/testdata/test_data_client.json", "A json file containing service chain info for testing")
+    serverAddr          = flag.String("server", "localhost:8082", "The address of the mygrpc server")
+    rpcType             = flag.String("rpc", "simple", "The type of RPC will be called, including 'simple', 'server_stream', 'client_stream', 'bi_stream'")
+    callInterval        = flag.Int("inv", 1, "The interval between each call in seconds")
+    callTimeout         = flag.Int("time", 1, "The maximal time in seconds waiting for one RPC completing")
+    callNum             = flag.Int("num", 10, "The number of time calling the RPC per goroutine")
+    concurNum           = flag.Int("con", 1, "The number of goroutine concurrently calling the RPC per client")
+    clientNum           = flag.Int("cli", 1, "The number of client instance running. Each client instance owns an independent tcp connection")
     
-    MyGrpcLogger     = log.New(os.Stderr, "mygrpc_", log.LstdFlags|log.Lshortfile)
+    myGrpcLogger        = log.New(os.Stderr, "mygrpc_client_", log.LstdFlags|log.Lshortfile)
 )
 
 func main() {
@@ -32,30 +34,37 @@ func main() {
     flag.Parse()
     if *useTestFile {
     
-        MyGrpcLogger.Printf("Use service info in the json file at %s", *svcInfoFile)
-        file_data, err := ioutil.ReadFile(*svcInfoFile)
+        myGrpcLogger.Printf("Use service chain info in the json file at %s", *chainInfoFile)
+        file_data, err := ioutil.ReadFile(*chainInfoFile)
         if err != nil {
-            MyGrpcLogger.Fatalf("Failed to load service info from %s: %v", *svcInfoFile, err) 
+            myGrpcLogger.Fatalf("Failed to load service chain info from %s: %v", *chainInfoFile, err)
         }
-        var svc_info []*pb.ServiceDescriptor
-        if err := json.Unmarshal(file_data, &svc_info); err != nil {
-            MyGrpcLogger.Fatalf("Failed to unmarshal the service info: %v", err)
+        var chain_info []*pb.ServiceChain
+        if err := json.Unmarshal(file_data, &chain_info); err != nil {
+            myGrpcLogger.Fatalf("Failed to unmarshal the service chain info: %v", err)
         }
-        MyGrpcLogger.Printf("Successfully load service info from the json file at %s", *svcInfoFile)
+        myGrpcLogger.Printf("Successfully load service chain info from the json file at %s", *chainInfoFile)
         
-        grpcServer := grpc.NewServer()
-        pb.RegisterMyGrpcServer(grpcServer, impl.NewMyGrpcServer(*useTestFile, svc_info, *svcName))
         
-        lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
-        if err != nil {
-            MyGrpcLogger.Fatalf("Failed to listen: %v", err)
+        clientSet := impl.NewMyGrpcClientSet(*useTestFile,
+                                             chain_info,
+                                             *serverAddr,
+                                             *rpcType,
+                                             time.Duration(*callInterval * int(time.Second)),
+                                             time.Duration(*callTimeout * int(time.Second)),
+                                             *callNum,
+                                             *concurNum,
+                                             *clientNum)
+
+        myGrpcLogger.Printf("Running MyGrpc grpc client")
+        if err := clientSet.Run(); err != nil {
+            myGrpcLogger.Fatalf("Failed running MyGrpc grpc client: %v", err)
         }
         
-        MyGrpcLogger.Printf("Starting MyGrpc grpc server at port %d", *port)
-        grpcServer.Serve(lis)
+        return
     
     }
     
-    MyGrpcLogger.Fatal("Current implementation only support loading service info from json file!")
+    myGrpcLogger.Fatal("Current implementation only support loading service chain info from json file!")
     
 }

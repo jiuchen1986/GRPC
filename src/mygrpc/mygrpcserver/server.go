@@ -24,7 +24,7 @@ var (
     svcName          = flag.String("name", "svcA", "The name of the service providing by this server")
     port             = flag.Int("port", 8082, "The server port")
     
-    MyGrpcLogger     = log.New(os.Stderr, "mygrpc_", log.LstdFlags|log.Lshortfile)
+    myGrpcLogger     = log.New(os.Stderr, "mygrpc_server_", log.LstdFlags|log.Lshortfile)
 )
 
 func main() {
@@ -32,30 +32,30 @@ func main() {
     flag.Parse()
     if *useTestFile {
     
-        MyGrpcLogger.Printf("Use service info in the json file at %s", *svcInfoFile)
+        myGrpcLogger.Printf("Use service info in the json file at %s", *svcInfoFile)
         file_data, err := ioutil.ReadFile(*svcInfoFile)
         if err != nil {
-            MyGrpcLogger.Fatalf("Failed to load service info from %s: %v", *svcInfoFile, err) 
+            myGrpcLogger.Fatalf("Failed to load service info from %s: %v", *svcInfoFile, err) 
         }
         var svc_info []*pb.ServiceDescriptor
         if err := json.Unmarshal(file_data, &svc_info); err != nil {
-            MyGrpcLogger.Fatalf("Failed to unmarshal the service info: %v", err)
+            myGrpcLogger.Fatalf("Failed to unmarshal the service info: %v", err)
         }
-        MyGrpcLogger.Printf("Successfully load service info from the json file at %s", *svcInfoFile)
+        myGrpcLogger.Printf("Successfully load service info from the json file at %s", *svcInfoFile)
         
         grpcServer := grpc.NewServer()
         pb.RegisterMyGrpcServer(grpcServer, impl.NewMyGrpcServer(*useTestFile, svc_info, *svcName))
         
         lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
         if err != nil {
-            MyGrpcLogger.Fatalf("Failed to listen: %v", err)
+            myGrpcLogger.Fatalf("Failed to listen: %v", err)
         }
         
-        MyGrpcLogger.Printf("Starting MyGrpc grpc server at port %d", *port)
+        myGrpcLogger.Printf("Starting MyGrpc grpc server at port %d", *port)
         grpcServer.Serve(lis)
     
     }
     
-    MyGrpcLogger.Fatal("Current implementation only support loading service info from json file!")
+    myGrpcLogger.Fatal("Current implementation only support loading service info from json file!")
     
 }
