@@ -14,7 +14,7 @@ service MyGrpc {
   rpc GetChainsReqsResp(stream ServiceChain) returns (ServiceChainDescriptors) {}
 
   // Get multiple service chain descriptors according to requests of which indicating to a single chain each
-  rpc GetChainReqsResps(stream ServiceChain) returns (stream ServiceChainDescriptor) {}
+  rpc GetChainsReqsResps(stream ServiceChain) returns (stream ServiceChainDescriptor) {}
 
 }
 

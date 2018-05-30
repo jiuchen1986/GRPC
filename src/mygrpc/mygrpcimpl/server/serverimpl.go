@@ -143,7 +143,7 @@ func (s *myGrpcServer) GetChainsReqsResp(srv pb.MyGrpc_GetChainsReqsRespServer) 
     }
 }
 
-func (s *myGrpcServer) GetChainReqsResps(srv pb.MyGrpc_GetChainReqsRespsServer) error {
+func (s *myGrpcServer) GetChainsReqsResps(srv pb.MyGrpc_GetChainsReqsRespsServer) error {
     var scd *pb.ServiceChainDescriptor
     var err error
     for {
