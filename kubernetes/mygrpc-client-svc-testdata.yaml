@@ -1,0 +1,45 @@
+##################################################################################################
+# service of mygrpc client with testing data
+##################################################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: mygrpc-client
+  namespace: istio-test
+  labels:
+    app: mygrpc-client
+spec:
+  ports:
+  - port: 8082
+    # protocol: TCP
+    name: grpc
+  selector:
+    app: mygrpc-client
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mygrpc-client
+  namespace: istio-test
+  labels:
+    app: mygrpc-client
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+        app: mygrpc-client
+        version: v1
+  template:
+    metadata:
+      labels:
+        app: mygrpc-client
+        version: v1
+    spec:
+      containers:
+      - name: mygrpc-client
+        image: jiuchen1986/mygrpc:client-testdata-0.2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8082
+---

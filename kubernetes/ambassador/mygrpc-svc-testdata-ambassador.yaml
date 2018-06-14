@@ -1,0 +1,57 @@
+##################################################################################################
+# service of mygrpc with testing data and annotations for using the ambassador as the apigateway
+##################################################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: mygrpc
+  namespace: istio-test
+  labels:
+    app: mygrpc
+  annotations:
+    getambassador.io/config: |
+      ---
+      apiVersion: ambassador/v0
+      kind: Mapping
+      name: mygrpc_mapping
+      grpc: true
+      prefix: /mygrpc.MyGrpc/
+      rewrite: /mygrpc.MyGrpc/
+      service: mygrpc:8082
+spec:
+  ports:
+  - port: 8082
+    # protocol: TCP
+    name: grpc
+    nodePort: 32001
+  type: NodePort
+  selector:
+    app: mygrpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mygrpc
+  namespace: istio-test
+  labels:
+    app: mygrpc
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+        app: mygrpc
+        version: v1
+  template:
+    metadata:
+      labels:
+        app: mygrpc
+        version: v1
+    spec:
+      containers:
+      - name: mygrpc-server
+        image: jiuchen1986/mygrpc:server-testdata-0.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8082
+---

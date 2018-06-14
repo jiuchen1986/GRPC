@@ -1,0 +1,18 @@
+##################################################################################################
+# istio ingress to the service of mygrpc server
+##################################################################################################
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: mygrpc-ingress
+  namespace: istio-test
+  annotations:
+    kubernetes.io/ingress.class: istio
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: mygrpc
+          servicePort: grpc
+---

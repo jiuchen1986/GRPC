@@ -228,7 +228,7 @@ The implementations of the server usually include several common steps as follow
 - Implementing the generated top-level server interface, e.g. `MyGrpcServer`, by filling the processing logic into the RPC-related functions.
 - Using the generated server interface specific to each RPC, e.g. `MyGrpc_ServerStreamCallServer` and `MyGrpc_ClientStreamCallServer`, in each related function to receive and send messages from and to the client.
 - Creating a generic gRPC server with options by executing like `grpcServer := grpc.NewServer(opts...)`.
-- Registering the implemented server object to the generic gRPC server via the generated function in `.pb.go` file, e.g. `func RegisterMyGrpcServer(s *grpc.Server, srv MyGrpcServer) {...}`.
+- Registering the implemented server object to the generic gRPC server via the generated function in the `.pb.go` file, e.g. `func RegisterMyGrpcServer(s *grpc.Server, srv MyGrpcServer) {...}`.
 - Running a tcp server listening on a port
 - Running the generic gRPC server with the opened tcp server.
 
@@ -279,49 +279,105 @@ With the generated codes for the client side shown above, codes of the client co
 ### Common Steps
 The implementations of the client usually include several common steps as follows
 
-- Implementing the generated top-level server interface, e.g. `MyGrpcServer`, by filling the processing logic into the RPC-related functions.
-- Using the generated server interface specific to each RPC, e.g. `MyGrpc_ServerStreamCallServer` and `MyGrpc_ClientStreamCallServer`, in each related function to receive and send messages from and to the client.
-- Creating a generic gRPC server with options by executing like `grpcServer := grpc.NewServer(opts...)`.
-- Registering the implemented server object to the generic gRPC server via the generated function in `.pb.go` file, e.g. `func RegisterMyGrpcServer(s *grpc.Server, srv MyGrpcServer) {...}`.
-- Running a tcp server listening on a port
-- Running the generic gRPC server with the opened tcp server.
+- Creating a connection object by calling `func Dial(target string, opts ...DialOption) (*ClientConn, error)` of the `google.golang.org/grpc` package, where the `target` represents an address, with both the host and the port, of a running grpc server.
+- Creating a client object for the defined grpc service using generated function in the `.pb.go` file, e.g. `func NewMyGrpcClient(cc *grpc.ClientConn) MyGrpcClient`, with the created connection object in the last step.
+- For the **Simple RPC**, directly called the corresponding generated function in the `.pb.go` file, e.g. `func SimpleCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (*Resp, error)`, via the created client object to send a message to the server and get a message containing the response.
+- For the **Server-side Streaming RPC**, called the corresponding generated function in the `.pb.go` file, e.g. `func ServerStreamCall(ctx context.Context, in *Req, opts ...grpc.CallOption) (MyGrpc_ServerStreamCallClient, error)`, via the created client object to send a message to the server and get a rpc-type-specific client object, e.g. `MyGrpc_ServerStreamCallClient`, which is used to continuously receive streaming messages from the server side.
+- For the **Client-side Streaming RPC**, called the corresponding generated function in the `.pb.go` file, e.g. `func ClientStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_ClientStreamCallClient, error)`, via the created client object to get a rpc-type-specific client object, e.g. `MyGrpc_ClientStreamCallClient`, which is used to continuously send streaming messages to the server side and get a message containing the response at the end.
+-  For the **Bidirectional Streaming RPC**, called the corresponding generated function in the `.pb.go` file, e.g. `func BiStreamCall(ctx context.Context, opts ...grpc.CallOption) (MyGrpc_BiStreamCallClient, error)`, via the created client object to get a rpc-type-specific client object, e.g. `MyGrpc_BiStreamCallClient`, which is used to continuously send and receive streaming messages to and from the server side at the same time.
 
 
 ### More Tips
 
-#### How To End Client-Side Streaming RPC
-For the client-side streaming RPC, a simple way to end the RPC and close the stream is like
+#### L4 vs. L7
+- Each time creating a client object, e.g. `MyGrpcClient`, a new L4 TCP connection will be established to the server.
+- Multiple callings of the different types of rpc via a single client object will lead to transportation with multiple streams on a single L4 TCP connection.
+
+
+#### Non TLS
+When use `grpc.Dial(...)` to establish a connection bearing grpc, securing communication with TLS is enabled by default. To call grpc without TLS, use `grpc.WithInsecure()` as a options in the `grpc.Dial(...)`, e.g. `conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())`.
+
+#### How To Complete Server-Side Streaming RPC
+First, call the rpc-specific function ones to send a single message to the server like:
+
+    cli, err:= client.ServerStreamCall(ctx, req)
+
+where the type of variables above are like
+
+    req    *Req
+    client MyGrpcClient
+    cli    MyGrpc_ServerStreamCallClient
+
+Then, similar to the ways ending client-side streaming RPC at the server side, complete server-side streaming RPC at the client side by
 
     for {
-        req, err := srv.Recv()
+        resp, err := cli.Recv()
         if err == io.EOF {
             ...
-            return srv.SendAndClose(resp)
+            return
         }    
         ...
     }
 
 where the type of variables above are like
 
-    req    *Req
-    srv    MyGrpc_ClientStreamCallServer
     resp   *Resp
+    cli    MyGrpc_ServerStreamCallClient
 
-As the outer `for{...}` loop is for continuously receiving messages from the client-side stream, the main idea for ending the RPC is calling the `SendAndClose(*Resp) error` function if a `io.EOF` error occurs when try to receive more messages from the client-side stream. 
+As the outer `for{...}` loop is for continuously receiving messages from the server-side stream, the main idea for ending the RPC is returning if a `io.EOF` error occurs when try to receive more messages from the server-side stream.
 
 
-#### How To End Bidirectional Streaming RPC
-For the bidirectional streaming RPC, a simple way to end the RPC and close the stream is like
+#### Tips for Bidirectional Streaming RPC
+The bidirectional streaming RPC is often used in the full-duplex cases, where sending and receiving are taken place in parallel. A simple way to do this at the client side is setting up a goroutine executing receiving/sending or both, and processing receiving/sending in the main process. For example,
 
-    for {
-        req, err := srv.Recv()
-        if err == io.EOF {
+    waitch := make(chan struct {})
+    go func() {
+        for {
+            resp, er := cli.Recv()
+            if er == io.EOF {
+                close(waitch)
+                return
+            }
             ...
-            return nil
-        }    
+        }
+    }()
+    for _, req := range reqs {
+        er := cli.Send(req)
         ...
     }
+    cli.CloseSend()
+    <-waitch        
+        
 
-where the type of variables are same to the ones in the last section.
+where the type of variables above are like
 
-As the outer `for{...}` loop is for continuously receiving and sending messages from and to the client, the main idea for ending the RPC is just returning non error if a `io.EOF` error occurs when try to receive more messages from the client. More messages can be send to the client before returning.
+    resp   *Resp
+    cli    MyGrpc_BiStreamCallClient
+    reqs   []*Req
+    req    *Req
+
+
+The above example realizes concurrently receiving and sending messages at client side, and completes when both the receiving and the sending end. Note that the function `CloseSend()` in `cli` comes from the `grpc.ClientStream` interface as a part of the interface combination forming the interface `MyGrpc_BiStreamCallClient`.
+
+
+## Wire Format Mapping between GRPC and HTTP/2
+
+See [https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
+
+
+## Other Materials
+
+### HTTP/2
+- [https://http2.github.io/](https://http2.github.io/)
+- [https://http2.akamai.com/](https://http2.akamai.com/)
+- [https://kinsta.com/learn/what-is-http2/](https://kinsta.com/learn/what-is-http2/)
+
+### Protocol Buffers
+- [https://developers.google.com/protocol-buffers/docs/overview](https://developers.google.com/protocol-buffers/docs/overview)
+
+### GRPC Gateway
+- [https://github.com/grpc-ecosystem/grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway)
+
+### GRPC Resource
+- [https://github.com/grpc-ecosystem](https://github.com/grpc-ecosystem)
+

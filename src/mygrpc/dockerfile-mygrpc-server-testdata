@@ -1,0 +1,15 @@
+# build a docker image of mygrpc server with testdata file
+From frolvlad/alpine-glibc
+
+WORKDIR /usr/src/app/
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash
+RUN mkdir -p /usr/src/grpc/src/mygrpc/testdata/
+
+COPY mygrpcserver/server ./server
+COPY testdata/test_data_server.json /usr/src/grpc/src/mygrpc/testdata/test_data_server.json
+
+RUN chmod +x server
+
+ENTRYPOINT ["/usr/src/app/server"]
+

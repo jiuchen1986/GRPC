@@ -12,6 +12,7 @@ import (
     
     pb "mygrpc/mygrpc"
     impl "mygrpc/mygrpcimpl/client"
+    val  "mygrpc/util/validate"
 )
 
 var (
@@ -32,6 +33,9 @@ var (
 func main() {
     
     flag.Parse()
+    if !val.ValRpcType(*rpcType) {
+        myGrpcLogger.Fatalf("Invalid rpc type: %s", *rpcType)
+    }
     if *useTestFile {
     
         myGrpcLogger.Printf("Use service chain info in the json file at %s", *chainInfoFile)

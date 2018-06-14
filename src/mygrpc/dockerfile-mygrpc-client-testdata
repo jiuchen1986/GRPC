@@ -1,0 +1,15 @@
+# build a docker image of mygrpc client with testdata file
+From frolvlad/alpine-glibc
+
+WORKDIR /usr/src/app/
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash
+RUN mkdir -p /usr/src/grpc/src/mygrpc/testdata/
+
+COPY mygrpcclient/client ./client
+COPY testdata/test_data_client.json /usr/src/grpc/src/mygrpc/testdata/test_data_client.json
+
+RUN chmod +x client
+
+CMD ["3600"]
+ENTRYPOINT ["sleep"]

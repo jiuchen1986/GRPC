@@ -91,26 +91,30 @@ func (c *myGrpcClientSet) Run() error {
         }
         defer conn.Close()
         client := pb.NewMyGrpcClient(conn)
+        crs := make([]*routineChannel, c.concurNum)
         
         for j := 0; j < c.concurNum; j++ {
-            cr := &routineChannel{
-                      clientId:       i,
-                      routineId:      j,
-                      endChannel:     make(chan struct{}),
-                      timeoutChannel: make(chan bool),
-                  }
+            crs[j] = &routineChannel{
+                         clientId:       i,
+                         routineId:      j,
+                         endChannel:     make(chan struct{}),
+                         timeoutChannel: make(chan bool),
+                     }
             // Call rpc
             switch c.rpcType {
                 case "simple":
-                    go c.CallSimpleRPC(client, cr.endChannel, cr.routineId, cr.clientId)
+                    go c.CallSimpleRPC(client, crs[j].endChannel, crs[j].routineId, crs[j].clientId)
                 case "server_stream":
-                    go c.CallServerStreamRPC(client, cr.endChannel, cr.routineId, cr.clientId)
+                    go c.CallServerStreamRPC(client, crs[j].endChannel, crs[j].routineId, crs[j].clientId)
                 case "client_stream":
-                    go c.CallClientStreamRPC(client, cr.endChannel, cr.routineId, cr.clientId)
+                    go c.CallClientStreamRPC(client, crs[j].endChannel, crs[j].routineId, crs[j].clientId)
                 case "bi_stream":
-                    go c.CallBiStreamRPC(client, cr.endChannel, cr.routineId, cr.clientId)
+                    go c.CallBiStreamRPC(client, crs[j].endChannel, crs[j].routineId, crs[j].clientId)
             }
-            cr.Wait(c.callInterval, c.callTimeout, c.callNum)
+        }
+        
+        for j := 0; j < c.concurNum; j++ {
+            crs[j].Wait(c.callInterval, c.callTimeout, c.callNum)
         }
     }
     
